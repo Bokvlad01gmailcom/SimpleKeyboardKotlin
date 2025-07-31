@@ -40,26 +40,24 @@ jobs:
           gradle-${{ runner.os }}-
         
     - name: Grant execute permission for gradlew
-      working-directory: SimpleKeyboardKotlin
       run: chmod +x gradlew
         
     - name: Build debug APK
-      working-directory: SimpleKeyboardKotlin
       run: ./gradlew assembleDebug
         
     - name: List APK files
-      run: find SimpleKeyboardKotlin -name "*.apk" -type f
+      run: find . -name "*.apk" -type f
         
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
         name: simple-keyboard-kotlin-apk-${{ github.sha }}
-        path: SimpleKeyboardKotlin/app/build/outputs/apk/debug/app-debug.apk
+        path: app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30
         
     - name: Get APK size
       run: |
-        APK_SIZE=$(stat -c%s SimpleKeyboardKotlin/app/build/outputs/apk/debug/app-debug.apk)
+        APK_SIZE=$(stat -c%s app/build/outputs/apk/debug/app-debug.apk)
         APK_SIZE_MB=$((APK_SIZE / 1024 / 1024))
         echo "APK Size: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
         echo "APK_SIZE=${APK_SIZE}" >> $GITHUB_ENV
@@ -69,7 +67,7 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        files: SimpleKeyboardKotlin/app/build/outputs/apk/debug/app-debug.apk
+        files: app/build/outputs/apk/debug/app-debug.apk
         name: Simple Keyboard Kotlin ${{ github.ref_name }}
         body: |
           ## 📱 Simple Keyboard Kotlin APK
