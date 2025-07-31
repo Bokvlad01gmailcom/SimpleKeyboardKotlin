@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Simple Keyboard</string>
+    <string name="send_enter">Send Enter</string>
+    <string name="enable_keyboard">Включить клавиатуру в системе</string>
+    <string name="show_floating_button">Показать плавающую кнопку</string>
+    <string name="toggle_debug">Переключить debug режим</string>
+    <string name="keyboard_service_label">Simple Keyboard</string>
+    <string name="keyboard_service_description">Минимальная клавиатура с плавающей кнопкой Enter</string>
+</resources>
