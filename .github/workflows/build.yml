@@ -61,7 +61,11 @@ jobs:
     - name: Build debug APK
       run: |
         export GRADLE_OPTS="-Xmx4g -Dfile.encoding=UTF-8"
-        ./gradlew clean assembleDebug --stacktrace --info --no-daemon
+        ./gradlew clean assembleDebug --stacktrace --info --no-daemon || {
+          echo "❌ First build attempt failed, trying with different settings..."
+          export GRADLE_OPTS="-Xmx2g -Dfile.encoding=UTF-8"
+          ./gradlew clean assembleDebug --stacktrace --no-daemon
+        }
         
     - name: List APK files
       run: find . -name "*.apk" -type f
