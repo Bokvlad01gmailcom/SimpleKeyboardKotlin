@@ -1,0 +1,63 @@
+name: Signed APK Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  signed-apk:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Install SDK components
+      run: |
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
+    
+    - name: Create debug keystore
+      run: |
+        keytool -genkey -v -keystore debug.keystore \
+          -alias androiddebugkey \
+          -keyalg RSA -keysize 2048 -validity 10000 \
+          -storepass android -keypass android \
+          -dname "CN=Android Debug,O=Android,C=US"
+    
+    - name: Build and sign APK
+      run: |
+        chmod +x gradlew
+        unset GRADLE_OPTS
+        unset JAVA_OPTS
+        export GRADLE_OPTS="-Xmx1024m -Dfile.encoding=UTF-8"
+        
+        # Build APK
+        ./gradlew clean assembleDebug --no-daemon --stacktrace
+        
+        # Sign APK
+        jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 \
+          -keystore debug.keystore -storepass android -keypass android \
+          app/build/outputs/apk/debug/app-debug.apk androiddebugkey
+        
+        # Verify signature
+        jarsigner -verify -verbose -certs app/build/outputs/apk/debug/app-debug.apk
+        
+        echo "=== APK Info ==="
+        ls -la app/build/outputs/apk/debug/app-debug.apk
+        file app/build/outputs/apk/debug/app-debug.apk
+    
+    - name: Upload signed APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: signed-apk
+        path: app/build/outputs/apk/debug/app-debug.apk
