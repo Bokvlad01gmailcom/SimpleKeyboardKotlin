@@ -1,0 +1,41 @@
+name: Basic Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  basic-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Check project files
+      run: |
+        echo "=== Project Structure ==="
+        ls -la
+        echo "=== Gradle files ==="
+        ls -la *.gradle* || echo "No gradle files in root"
+        ls -la app/*.gradle* || echo "No gradle files in app"
+        echo "=== Source files ==="
+        find app/src -name "*.kt" | head -5 || echo "No Kotlin files found"
+        echo "=== Gradle wrapper ==="
+        ls -la gradlew gradle/wrapper/
+    
+    - name: Test Gradle wrapper only
+      run: |
+        chmod +x gradlew
+        ./gradlew --version
+        
+    - name: Check dependencies without build
+      run: |
+        ./gradlew dependencies --configuration debugCompileClasspath || echo "Dependencies check failed"
