@@ -28,8 +28,11 @@ jobs:
         
     - name: Accept Android SDK licenses and install components
       run: |
+        echo "=== Installing Android SDK Components ==="
         yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "cmake;3.22.1" || true
+        echo "=== Verifying installations ==="
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed
         
     - name: Cache Gradle packages
       uses: actions/cache@v4
@@ -46,26 +49,62 @@ jobs:
         rm -rf ~/.gradle/caches
         rm -rf .gradle
         
+    - name: Validate project structure
+      run: |
+        echo "=== Project Structure Validation ==="
+        echo "Checking required files:"
+        ls -la build.gradle.kts && echo "✅ Root build.gradle.kts found" || echo "❌ Root build.gradle.kts missing"
+        ls -la app/build.gradle.kts && echo "✅ App build.gradle.kts found" || echo "❌ App build.gradle.kts missing"
+        ls -la settings.gradle.kts && echo "✅ Settings found" || echo "❌ Settings missing"
+        ls -la gradlew && echo "✅ Gradle wrapper found" || echo "❌ Gradle wrapper missing"
+        echo "Kotlin source files:"
+        find app/src -name "*.kt" | head -10
+        
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
       
     - name: Check Gradle wrapper
       run: |
+        echo "=== Environment Check ==="
         echo "Gradle wrapper version:"
         ./gradlew --version
         echo "Java version:"
         java -version
         echo "Android SDK location:"
         echo $ANDROID_SDK_ROOT
+        echo "Available Android platforms:"
+        ls -la $ANDROID_SDK_ROOT/platforms/ || echo "No platforms found"
+        echo "Available build-tools:"
+        ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "No build-tools found"
+        echo "Gradle properties:"
+        cat gradle.properties
         
     - name: Build debug APK
       run: |
-        export GRADLE_OPTS="-Xmx4g -Dfile.encoding=UTF-8"
-        ./gradlew clean assembleDebug --stacktrace --info --no-daemon || {
-          echo "❌ First build attempt failed, trying with different settings..."
-          export GRADLE_OPTS="-Xmx2g -Dfile.encoding=UTF-8"
-          ./gradlew clean assembleDebug --stacktrace --no-daemon
-        }
+        echo "=== Starting Build Process ==="
+        
+        # Attempt 1: Standard build with 4GB memory
+        echo "🚀 Attempt 1: Standard build (4GB memory)"
+        export GRADLE_OPTS="-Xmx4g -Dfile.encoding=UTF-8 -Dorg.gradle.jvmargs=-Xmx4g"
+        if ./gradlew clean assembleDebug --stacktrace --info --no-daemon; then
+          echo "✅ Build successful on first attempt!"
+        else
+          echo "❌ First attempt failed, trying reduced memory..."
+          
+          # Attempt 2: Reduced memory
+          echo "🚀 Attempt 2: Reduced memory (2GB)"
+          export GRADLE_OPTS="-Xmx2g -Dfile.encoding=UTF-8 -Dorg.gradle.jvmargs=-Xmx2g"
+          if ./gradlew clean assembleDebug --stacktrace --no-daemon; then
+            echo "✅ Build successful on second attempt!"
+          else
+            echo "❌ Second attempt failed, trying minimal build..."
+            
+            # Attempt 3: Minimal build
+            echo "🚀 Attempt 3: Minimal build (1GB, no parallel)"
+            export GRADLE_OPTS="-Xmx1g -Dfile.encoding=UTF-8"
+            ./gradlew clean assembleDebug --stacktrace --no-daemon --no-parallel --max-workers=1
+          fi
+        fi
         
     - name: List APK files
       run: find . -name "*.apk" -type f
