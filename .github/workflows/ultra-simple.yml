@@ -25,7 +25,10 @@ jobs:
     - name: Build APK
       run: |
         chmod +x gradlew
-        ./gradlew assembleDebug --no-daemon
+        unset GRADLE_OPTS
+        unset JAVA_OPTS
+        export GRADLE_OPTS="-Xmx1024m -Dfile.encoding=UTF-8"
+        ./gradlew assembleDebug --no-daemon --stacktrace
     
     - uses: actions/upload-artifact@v4
       with:
