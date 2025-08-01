@@ -21,18 +21,65 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
         
+    - name: Set up Android SDK manually (fallback)
+      run: |
+        echo "=== Manual Android SDK Setup ==="
+        export ANDROID_SDK_ROOT=$HOME/android-sdk
+        export ANDROID_HOME=$ANDROID_SDK_ROOT
+        export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
+        export PATH=$PATH:$ANDROID_SDK_ROOT/platform-tools
+        
+        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+        cd $ANDROID_SDK_ROOT/cmdline-tools
+        
+        echo "Downloading Android SDK command line tools..."
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mv cmdline-tools latest
+        
+        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+        
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
         api-level: 34
+        target: default
+        arch: x86_64
+        profile: Nexus 6
         
     - name: Accept Android SDK licenses and install components
       run: |
         echo "=== Installing Android SDK Components ==="
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "cmake;3.22.1" || true
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        ls -la $ANDROID_SDK_ROOT/ || echo "SDK root not found"
+        
+        # Try different SDK manager paths
+        if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+        elif [ -f "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" ]; then
+          SDKMANAGER="$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
+        elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+        else
+          echo "❌ SDK Manager not found, trying to install..."
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          cd $ANDROID_SDK_ROOT/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+          unzip -q commandlinetools-linux-9477386_latest.zip
+          mv cmdline-tools latest
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          cd -
+        fi
+        
+        echo "Using SDK Manager: $SDKMANAGER"
+        yes | $SDKMANAGER --licenses || true
+        $SDKMANAGER "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
         echo "=== Verifying installations ==="
-        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed
+        $SDKMANAGER --list_installed
         
     - name: Cache Gradle packages
       uses: actions/cache@v4
