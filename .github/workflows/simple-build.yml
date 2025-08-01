@@ -22,13 +22,15 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Accept licenses
-      run: yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
-      
-    - name: Install SDK components
+    - name: Accept licenses and install components
       run: |
+        echo "=== Installing Android SDK components ==="
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platform-tools"
+        echo "=== Verifying installation ==="
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed
         
     - name: Make gradlew executable
       run: chmod +x gradlew
@@ -38,7 +40,11 @@ jobs:
         unset GRADLE_OPTS
         unset JAVA_OPTS
         export GRADLE_OPTS="-Xmx1024m -Dfile.encoding=UTF-8"
-        ./gradlew assembleDebug --no-daemon
+        echo "=== Starting build ==="
+        ./gradlew assembleDebug --no-daemon --stacktrace
+        echo "=== Build completed, checking for APK ==="
+        find . -name "*.apk" -type f
+        ls -la app/build/outputs/apk/debug/ || echo "Debug APK directory not found"
       
     - name: Upload APK
       uses: actions/upload-artifact@v4

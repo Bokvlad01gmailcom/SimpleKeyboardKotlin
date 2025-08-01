@@ -1,0 +1,78 @@
+name: Debug Build Analysis
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  debug-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Install SDK and diagnose
+      run: |
+        echo "=== Environment Check ==="
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        java -version
+        
+        echo "=== Installing SDK components ==="
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
+        
+        echo "=== Verifying SDK installation ==="
+        ls -la $ANDROID_SDK_ROOT/platforms/
+        ls -la $ANDROID_SDK_ROOT/build-tools/
+    
+    - name: Gradle diagnostics
+      run: |
+        chmod +x gradlew
+        unset GRADLE_OPTS
+        unset JAVA_OPTS
+        export GRADLE_OPTS="-Xmx1024m -Dfile.encoding=UTF-8"
+        
+        echo "=== Gradle version ==="
+        ./gradlew --version
+        
+        echo "=== Project info ==="
+        ./gradlew projects
+        
+        echo "=== Tasks available ==="
+        ./gradlew tasks | grep -i assemble
+    
+    - name: Attempt build with full logging
+      run: |
+        unset GRADLE_OPTS
+        unset JAVA_OPTS
+        export GRADLE_OPTS="-Xmx1024m -Dfile.encoding=UTF-8"
+        
+        echo "=== Starting build with full logging ==="
+        ./gradlew clean assembleDebug --no-daemon --stacktrace --info --debug | tee build.log
+        
+        echo "=== Checking build results ==="
+        find . -name "*.apk" -type f
+        find app/build -type f -name "*.apk" || echo "No APK found in app/build"
+        
+        echo "=== Build directory structure ==="
+        find app/build -type d | head -20
+        
+        echo "=== Last 50 lines of build log ==="
+        tail -50 build.log
+    
+    - name: Upload build log
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-build-log
+        path: build.log

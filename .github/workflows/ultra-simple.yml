@@ -22,13 +22,25 @@ jobs:
       with:
         api-level: 34
     
+    - name: Install SDK components
+      run: |
+        echo "=== Installing required SDK components ==="
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses <<< 'y'
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0"
+        echo "=== SDK components installed ==="
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --list_installed
+    
     - name: Build APK
       run: |
         chmod +x gradlew
         unset GRADLE_OPTS
         unset JAVA_OPTS
         export GRADLE_OPTS="-Xmx1024m -Dfile.encoding=UTF-8"
+        echo "=== Starting build ==="
         ./gradlew assembleDebug --no-daemon --stacktrace
+        echo "=== Build completed ==="
+        find . -name "*.apk" -type f
     
     - uses: actions/upload-artifact@v4
       with:
