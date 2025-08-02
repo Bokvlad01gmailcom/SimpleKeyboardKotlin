@@ -1,4 +1,4 @@
-name: Build Kotlin Simple Keyboard
+name: Build APK
 
 on:
   push:
@@ -15,216 +15,45 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Java 17
+    - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
-        distribution: 'temurin'
         java-version: '17'
-        
-    - name: Set up Android SDK manually (fallback)
-      run: |
-        echo "=== Manual Android SDK Setup ==="
-        export ANDROID_SDK_ROOT=$HOME/android-sdk
-        export ANDROID_HOME=$ANDROID_SDK_ROOT
-        export PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin
-        export PATH=$PATH:$ANDROID_SDK_ROOT/platform-tools
-        
-        mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-        cd $ANDROID_SDK_ROOT/cmdline-tools
-        
-        echo "Downloading Android SDK command line tools..."
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-9477386_latest.zip
-        mv cmdline-tools latest
-        
-        echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-        echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+        distribution: 'temurin'
         
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-      with:
-        api-level: 34
-        target: default
-        arch: x86_64
-        profile: Nexus 6
-        
-    - name: Accept Android SDK licenses and install components
-      run: |
-        echo "=== Installing Android SDK Components ==="
-        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-        echo "ANDROID_HOME: $ANDROID_HOME"
-        ls -la $ANDROID_SDK_ROOT/ || echo "SDK root not found"
-        
-        # Try different SDK manager paths
-        if [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-        elif [ -f "$ANDROID_SDK_ROOT/tools/bin/sdkmanager" ]; then
-          SDKMANAGER="$ANDROID_SDK_ROOT/tools/bin/sdkmanager"
-        elif [ -f "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
-          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-        else
-          echo "❌ SDK Manager not found, trying to install..."
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-          cd $ANDROID_SDK_ROOT/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-          unzip -q commandlinetools-linux-9477386_latest.zip
-          mv cmdline-tools latest
-          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          cd -
-        fi
-        
-        echo "Using SDK Manager: $SDKMANAGER"
-        yes | $SDKMANAGER --licenses || true
-        $SDKMANAGER "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
-        echo "=== Verifying installations ==="
-        $SDKMANAGER --list_installed
-        
+      
     - name: Cache Gradle packages
       uses: actions/cache@v4
       with:
         path: |
           ~/.gradle/caches
           ~/.gradle/wrapper
-        key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: |
-          gradle-${{ runner.os }}-
+          ${{ runner.os }}-gradle-
           
-    - name: Clean Gradle
-      run: |
-        rm -rf ~/.gradle/caches
-        rm -rf .gradle
-        
-    - name: Validate project structure
-      run: |
-        echo "=== Project Structure Validation ==="
-        echo "Checking required files:"
-        ls -la build.gradle.kts && echo "✅ Root build.gradle.kts found" || echo "❌ Root build.gradle.kts missing"
-        ls -la app/build.gradle.kts && echo "✅ App build.gradle.kts found" || echo "❌ App build.gradle.kts missing"
-        ls -la settings.gradle.kts && echo "✅ Settings found" || echo "❌ Settings missing"
-        ls -la gradlew && echo "✅ Gradle wrapper found" || echo "❌ Gradle wrapper missing"
-        echo "Kotlin source files:"
-        find app/src -name "*.kt" | head -10
-        
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
       
-    - name: Check Gradle wrapper
-      run: |
-        echo "=== Environment Check ==="
-        echo "Gradle wrapper version:"
-        ./gradlew --version
-        echo "Java version:"
-        java -version
-        echo "Android SDK location:"
-        echo $ANDROID_SDK_ROOT
-        echo "Available Android platforms:"
-        ls -la $ANDROID_SDK_ROOT/platforms/ || echo "No platforms found"
-        echo "Available build-tools:"
-        ls -la $ANDROID_SDK_ROOT/build-tools/ || echo "No build-tools found"
-        echo "Gradle properties:"
-        cat gradle.properties
-        
     - name: Build debug APK
-      run: |
-        echo "=== Starting Build Process ==="
-        
-        # Attempt 1: Standard build with 4GB memory
-        echo "🚀 Attempt 1: Standard build (4GB memory)"
-        export GRADLE_OPTS="-Xmx4g -Dfile.encoding=UTF-8 -Dorg.gradle.jvmargs=-Xmx4g"
-        if ./gradlew clean assembleDebug --stacktrace --info --no-daemon; then
-          echo "✅ Build successful on first attempt!"
-        else
-          echo "❌ First attempt failed, trying reduced memory..."
-          
-          # Attempt 2: Reduced memory
-          echo "🚀 Attempt 2: Reduced memory (2GB)"
-          export GRADLE_OPTS="-Xmx2g -Dfile.encoding=UTF-8 -Dorg.gradle.jvmargs=-Xmx2g"
-          if ./gradlew clean assembleDebug --stacktrace --no-daemon; then
-            echo "✅ Build successful on second attempt!"
-          else
-            echo "❌ Second attempt failed, trying minimal build..."
-            
-            # Attempt 3: Minimal build
-            echo "🚀 Attempt 3: Minimal build (1GB, no parallel)"
-            export GRADLE_OPTS="-Xmx1g -Dfile.encoding=UTF-8"
-            ./gradlew clean assembleDebug --stacktrace --no-daemon --no-parallel --max-workers=1
-          fi
-        fi
-        
-    - name: List APK files
-      run: find . -name "*.apk" -type f
+      run: ./gradlew assembleDebug --stacktrace
       
-    - name: Check APK exists
+    - name: Verify APK existence
       run: |
-        echo "=== APK Validation ==="
-        if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-          echo "✅ APK created successfully!"
-          APK_SIZE=$(stat -c%s app/build/outputs/apk/debug/app-debug.apk)
-          APK_SIZE_KB=$((APK_SIZE / 1024))
-          echo "📦 APK Size: ${APK_SIZE_KB}KB (${APK_SIZE} bytes)"
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
-          
-          # Validate APK structure
-          echo "=== APK Structure Check ==="
-          file app/build/outputs/apk/debug/app-debug.apk
-          
-          if [ $APK_SIZE -gt 100000 ]; then
-            echo "✅ APK size looks reasonable (>100KB)"
-          else
-            echo "⚠️ APK seems too small, might be corrupted"
-          fi
+        APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
+        if [ -f "$APK_PATH" ]; then
+          echo "✅ APK successfully built at $APK_PATH"
+          ls -lh $APK_PATH
         else
-          echo "❌ APK not found! Searching for any APK files..."
-          find . -name "*.apk" -type f
-          echo "=== Build output directory structure ==="
-          find app/build -type f | head -20
+          echo "❌ APK build failed! File not found at $APK_PATH"
           exit 1
         fi
-        
+
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
-        name: simple-keyboard-kotlin-apk-${{ github.sha }}
+        name: simple-keyboard-debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30
-        
-    - name: Get APK size
-      run: |
-        APK_SIZE=$(stat -c%s app/build/outputs/apk/debug/app-debug.apk)
-        APK_SIZE_MB=$((APK_SIZE / 1024 / 1024))
-        echo "APK Size: ${APK_SIZE_MB}MB (${APK_SIZE} bytes)"
-        echo "APK_SIZE=${APK_SIZE}" >> $GITHUB_ENV
-        echo "APK_SIZE_MB=${APK_SIZE_MB}" >> $GITHUB_ENV
-        
-    - name: Create Release (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: app/build/outputs/apk/debug/app-debug.apk
-        name: Simple Keyboard Kotlin ${{ github.ref_name }}
-        body: |
-          ## 📱 Simple Keyboard Kotlin APK
-          
-          Современная нативная версия на Kotlin с Jetpack Compose.
-          
-          ### 📊 Характеристики:
-          - 📦 Размер APK: ${{ env.APK_SIZE_MB }}MB
-          - ⚡ Производительность: 100% нативная
-          - 🎨 UI: Jetpack Compose
-          - 🔧 Язык: Kotlin
-          
-          ### 🚀 Установка:
-          1. Скачайте `app-debug.apk`
-          2. Установите на Android устройство
-          3. Включите клавиатуру в настройках системы
-          4. Покажите плавающую кнопку
-          
-          ### ✨ Функции:
-          - ⌨️ InputMethodService
-          - 🔘 Плавающая кнопка Enter с перетаскиванием
-          - 🐛 Debug сервер с логами в реальном времени
-          - 🎨 Material Design 3
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
