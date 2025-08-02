@@ -1,5 +1,7 @@
 # 🚀 Simple Keyboard - Kotlin Native
 
+[![Build APK](https://github.com/username/SimpleKeyboardKotlin/actions/workflows/build-apk.yml/badge.svg)](https://github.com/username/SimpleKeyboardKotlin/actions/workflows/build-apk.yml)
+
 Современная минимальная клавиатура для Android на Kotlin с Jetpack Compose.
 
 ## ✨ Особенности
